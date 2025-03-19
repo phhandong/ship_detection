@@ -159,6 +159,8 @@ weights/
 *.tflite
 *.h5
 *.mnn
+*.avi
+*.mp4
 *_saved_model/
 *_web_model/
 *_openvino_model/
@@ -173,7 +175,8 @@ pnnx*
 
 # calibration image
 calibration_*.npy
-data_utils/*.avi
-data_utils/*.mp4
+
+data_utils/*.json
 data_utils/*.jpg
+data_utils/*.png
 data_utils/*.txt
