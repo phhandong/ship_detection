@@ -173,3 +173,7 @@ pnnx*
 
 # calibration image
 calibration_*.npy
+data_utils/*.avi
+data_utils/*.mp4
+data_utils/*.jpg
+data_utils/*.txt
