@@ -53,7 +53,7 @@ class DataGenerator:
         return img
     
     def visualize_rgb_video(self):
-        for img_name in tqdm(self.file_list[:1000]):
+        for img_name in tqdm(self.file_list[:2500]):
             self.img_list.append(self.visualize_rgb(img_name))
         self.gen_video(self.img_list, 'Pohang_camright.avi')
     
@@ -73,7 +73,7 @@ class DataGenerator:
         - file_name: LiDAR 数据文件的完整路径。
 
         返回:
-        - pointcloud: 点云数据，形状为 (N, 6)，每行是 (x, y, z, intensity)。
+        - pointcloud: 点云数据，形状为 (N, 6)
         """
         # pointcloud = []
         # with open(file_name, 'rb') as f:
@@ -183,12 +183,12 @@ class DataGenerator:
         将四元数转换为旋转矩阵。
 
         参数:
-        - quaternion: 四元数 [q_w, q_x, q_y, q_z]
+        - quaternion: 四元数 [q_z, q_x, q_y, q_w]
 
         返回:
         - R: 旋转矩阵 (3, 3)
         """
-        q_w, q_x, q_y, q_z = quaternion
+        q_x, q_y, q_z, q_w = quaternion
         R = np.array([
             [1 - 2 * (q_y**2 + q_z**2), 2 * (q_x * q_y - q_z * q_w), 2 * (q_x * q_z + q_y * q_w)],
             [2 * (q_x * q_y + q_z * q_w), 1 - 2 * (q_x**2 + q_z**2), 2 * (q_y * q_z - q_x * q_w)],
@@ -240,20 +240,16 @@ class DataGenerator:
         with open(os.path.join(self.calib_dir, 'extrinsics.json')) as f:
             calib = json.load(f)
         with open(os.path.join(self.calib_dir, 'intrinsics.json')) as f:
-            intri = json.load(f)        
-        cam_calib = calib['stereo_left']
+            intri = json.load(f)                
         cam_K,cam_dis = self.parse_camera_parameters(intri['stereo_left'])
+        cam_calib = calib['stereo_left']
         cam_R = self.quaternion_to_rotation_matrix(cam_calib['quaternion'])
         cam_T = np.array(cam_calib['translation']).reshape(-1,1) 
         
         lidar_camlib = calib['lidar_front']
         lidar_R = self.quaternion_to_rotation_matrix(lidar_camlib['quaternion'])
         lidar_T = np.array(lidar_camlib['translation']).reshape(-1,1)
-        
-        # lidar_R = lidar_R.T
-        # lidar_T = - lidar_R @ lidar_T 
-        
-        
+         
         return (cam_K, cam_R, cam_T, cam_dis), (lidar_R, lidar_T)        
     
     def project_pointcloud_lidar_to_image(self, pointcloud, image, cam_K, cam_R, cam_T, cam_dis, lidar_R, lidar_T):
@@ -279,7 +275,6 @@ class DataGenerator:
         cam_R = cam_R.T
         cam_T = - cam_R @ cam_T
         
-        
         cam_TR = np.vstack((np.hstack((cam_R,cam_T.reshape(-1,1))),np.reshape(np.array([0,0,0,1]),(1,-1))))   # (4,4)
         lidar_TR = np.vstack((np.hstack((lidar_R,lidar_T.reshape(-1,1))),np.reshape(np.array([0,0,0,1]),(1,-1))))  # (4,4)
 
@@ -290,11 +285,16 @@ class DataGenerator:
 
         points_2d = points_2d_homogeneous[:2, :] / points_2d_homogeneous[2, :]
 
+        # points_2d = points_2d.T.reshape(-1, 1, 2)  # 转换为 OpenCV 格式 (N, 1, 2)
+        # points_2d_undistorted = cv2.undistortPoints(points_2d, cam_K, np.array(cam_dis), None, cam_K)  # 校正畸变
+
         img_with_projection = image.copy()
+        # for u, v in points_2d_undistorted[:, 0, :]:
         for u, v in points_2d.T:
             u, v = int(u), int(v)
             if 0 <= u < image.shape[1] and 0 <= v < image.shape[0]:
-                cv2.circle(img_with_projection, (image.shape[1] - u,image.shape[0] - v), 3, (0, 0, 255), -1)
+                # cv2.circle(img_with_projection, (image.shape[1] - u,image.shape[0] - v), 3, (0, 0, 255), -1)
+                cv2.circle(img_with_projection, (u,v), 3, (0, 0, 255), -1)
 
         return img_with_projection
     
@@ -324,8 +324,7 @@ class DataGenerator:
         img_timestamps = []
         for (img_name, img_timestamp) in img_timestamp:
             if img_name in img_timestamp_dict.keys():
-                img_timestamps.append((img_name, img_timestamp_dict[img_name]))
-        
+                img_timestamps.append((img_name, img_timestamp_dict[img_name]))        
         
         for i, (img_name, img_timestamp) in enumerate(img_timestamps):
             if img_timestamp is None:
