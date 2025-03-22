@@ -94,9 +94,9 @@ def plot_point_cloud(points):
 
 
 number_of_lidar_scans_to_transform = 10
-path_to_lidar_files = r"E:\Python_Project\Ship_Detection\Pohang\poang00\lidar_starboard\points"
+path_to_lidar_files = r"E:\Python_Project\Ship_Detection\dataset\Pohang\poang00\lidar_starboard\points"
 
-path_to_baseline = r"E:\Python_Project\Ship_Detection\Pohang\poang00\navigation\baseline.txt"
+path_to_baseline = r"E:\Python_Project\Ship_Detection\dataset\Pohang\poang00\navigation\baseline.txt"
 
 # Load transformation data
 timestamps, quaternions, translations = load_transformations(path_to_baseline)
