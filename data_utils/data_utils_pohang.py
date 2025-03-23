@@ -1,4 +1,5 @@
 import numpy as np
+import ast
 import os
 import matplotlib.pyplot as plt
 import cv2
@@ -7,13 +8,14 @@ from tqdm import tqdm
 import open3d as o3d
 
 class DataGenerator:
-    def __init__(self, base_dir, img_dir, xband_dir,lidar_dir,calib_dir,label_dir):
+    def __init__(self, base_dir, img_dir, xband_dir,lidar_dir,calib_dir,label_dir,result_dir=r'E:\Python_Project\Ship_Detection\yolo8\results\wo_train_v8'):
         self.base_dir = base_dir
         self.img_dir = img_dir
         self.xband_dir = xband_dir
         self.lidar_dir = lidar_dir
         self.calib_dir = calib_dir
         self.label_dir = label_dir 
+        self.result_dir = result_dir
         self.file_list = list(set(f.split('.')[0] for f in os.listdir(img_dir)))
         self.file_list.sort()
         self.labeled = []
@@ -302,7 +304,7 @@ class DataGenerator:
         self.img_list = sorted(os.listdir(self.img_dir))
         self.lidar_list = sorted(os.listdir(self.lidar_dir))
         img_timestamp_dict = {}
-        with open(os.path.join(os.path.dirname(self.img_dir), 'timestamp.txt')) as f:
+        with open('match_list_pohang.txt') as f:
             for line in f:
                 timestamp,img_name = line.strip().split()
                 timestamp = timestamp.split('.')
@@ -362,7 +364,7 @@ class DataGenerator:
         cloud_points = self.process_lidar(lidar_name)
         distances = np.linalg.norm(cloud_points[:, :2], axis=1)  # Compute distance for [x, y, z]
         min_range = 4.0
-        max_range = 100.0
+        max_range = 150.0
         # Filter points that are closer than the minimum range
         cloud_points = cloud_points[(distances >= min_range) & (distances <= max_range)]
         
@@ -382,9 +384,24 @@ class DataGenerator:
     def visualize_projection_video(self):
         video_list = []
         match_list = self.create_match_list()
-        for m in tqdm(match_list[:2000]):
+        for m in tqdm(match_list):
             video_list.append(self.visualize_projection(m[1], m[0]))
         self.gen_video(video_list, 'projection.avi')
+    
+    def visualize_projection_single(self,img_name='006210.png'):
+        match_dict = {}
+        if not os.path.exists('match_list_pohang.txt'):
+            self.create_match_list()
+        with open('match_list_pohang.txt') as f:
+            for line in f:
+                im,st = ast.literal_eval(line.strip())
+                match_dict[im] = st
+        img = self.visualize_projection(match_dict[img_name],img_name)
+        img_n,ext = img_name.split('.')
+        cv2.imwrite(os.path.join(self.result_dir,img_n + '-lidar.' + ext),img)
+        
+        
+
 
 
 if __name__ == '__main__':
@@ -418,9 +435,10 @@ if __name__ == '__main__':
     # data_loader.visualize_rgb_video()
     
     # data_loader.visualize_projection('1724240642520185841.bin', '1724240641715529007.jpg')
-    # data_loader.visualize_lidar(data_loader.process_lidar('1724240642520185841.bin'))
+    # data_loader.visualize_lidar(data_loader.process_lidar('1625124970162969390.bin'))
     # data_loader.visualize_lidar_video()
-    data_loader.visualize_projection_video()
+    # data_loader.visualize_projection_video()
+    data_loader.visualize_projection_single()
 
     
         
