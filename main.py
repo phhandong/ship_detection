@@ -1,6 +1,8 @@
 import os
+import argparse
 import cv2
 import numpy as np
+import json
 import random
 import shutil
 from tqdm import tqdm
@@ -60,8 +62,13 @@ class Model_Trainer():
         results[0].show()
         results = results[0].cpu()
         img_n,ext = img_name.split('.')
+        
         if '-' in model_name:            
             output_name = img_n + '-' + model_name.split('-')[-1] + '.' + ext
+            json_name = img_n + '-' + model_name.split('-')[-1] + '.json'
+            
+            with open(os.path.join(self.output_dir,json_name), 'w') as f:
+                json.dump(results.to_json(), f, indent=4)
             self.draw_mask(results.orig_img,results.masks.xy,img_name)
         else:
             output_name = img_name
@@ -94,7 +101,7 @@ class Model_Trainer():
 if __name__ == '__main__':
     model_trainer = Model_Trainer(r'E:\Python_Project\Ship_Detection\dataset\Pohang\poang00\stereo',r'.\weights',r'E:\Python_Project\Ship_Detection\yolo8\results\wo_train_v8')
     # model_init.split_dataset()
-    result = model_trainer.inference_single(model_name = 'yolov8l',img_name='006210.png')
+    result = model_trainer.inference_single(model_name = 'yolov8l-seg',img_name='006210.png')
   
     # Train
     # model = YOLO("yolov8l.yaml").load("weights/yolov8l.pt")  # build from YAML and transfer weights
