@@ -2,6 +2,7 @@ import os
 import cv2
 import numpy as np
 import random
+import time
 import shutil
 from tqdm import tqdm
 from ultralytics import YOLO
@@ -10,15 +11,19 @@ from ultralytics.utils.downloads import attempt_download_asset
 import  matplotlib.pyplot as PIL
 
 class Model_Trainer():
-    def __init__(self,data_dir,weight_dir,output_dir):
+    def __init__(self,data_dir,weight_dir,output_dir,run_dir='./runs',model_config='./yolov8.yaml',data_config='pohang.yaml'):
       self.data_dir = data_dir
       self.weight_dir = weight_dir
       self.output_dir = output_dir
+      self.run_dir = run_dir
+      self.model_config = model_config
+      self.data_config = data_config
+      self.model = YOLO(self.model_config)
    
-    def download():
+    def download(self):
         # model = YOLO(r"ultralytics\cfg\models\v8\yolov8.yaml")  # build a new model from YAML
       
-        assets = [f"yolov8{size}{suffix}.pt" for size in "nsmlx" for suffix in ("", "-cls", "-seg")]
+        assets = [f"yolov8{size}{suffix}.pt" for size in "lx" for suffix in ("", "-cls", "-seg")]
         for x in assets:
             attempt_download_asset(f"weights/{x}")
             
@@ -89,16 +94,26 @@ class Model_Trainer():
             else:
                 target = 'train'
             shutil.copy(os.path.join(self.data_dir,'left_images',img),os.path.join(self.data_dir,target,'images',img))
-            shutil.copy(os.path.join(self.data_dir,'annotations',label),os.path.join(self.data_dir,target,'labels',label))            
+            shutil.copy(os.path.join(self.data_dir,'annotations',label),os.path.join(self.data_dir,target,'labels',label))
+
+    def eval(self,exp_name):
+        self.model = YOLO((os.path.join(self.run_dir,exp_name,'weights','best.pt')))
+        metrics = self.model.val(data=self.data_config,save_json=True,plots=True,save_txt=True,name=os.path.join('val',os.path.basename(exp_name)+f'_{time.strftime("%Y%m%d%H%M%S")}'))   
+        metrics.box.map  # map50-95
+        metrics.box.map50  # map50
+        metrics.box.map75  # map75
+        metrics.box.maps  # a list contains map50-95 of each category     
+        
   
 if __name__ == '__main__':
-    model_trainer = Model_Trainer(r'E:\Python_Project\Ship_Detection\dataset\Pohang\poang00\stereo',r'.\weights',r'E:\Python_Project\Ship_Detection\yolo8\results\wo_train_v8')
-    # model_init.split_dataset()
-    result = model_trainer.inference_single(model_name = 'yolov8l',img_name='006210.png')
-  
+    model_trainer = Model_Trainer(r'D:\hd\dataset\poang01\stereo',r'.\weights',r'D:\hd\ship_detection\results\wo_train_v8')
+    model_trainer.split_dataset()
+    # result = model_trainer.inference_single(model_name = 'yolov8l',img_name='006210.png')
+    # model_trainer.download()
     # Train
-    # model = YOLO("yolov8l.yaml").load("weights/yolov8l.pt")  # build from YAML and transfer weights
-    # results = model.train(data="pohang.yaml", epochs=100, imgsz=640, batch=2)
+    # model = YOLO("yolov8l.yaml")
+    # results = model.train(data="pohang.yaml", epochs=100, imgsz=640, batch=16)
     # print(settings)
     # print(model.info())
+    # model_trainer.eval('detect/train4')
     
