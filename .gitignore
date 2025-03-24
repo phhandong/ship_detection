@@ -181,3 +181,5 @@ data_utils/*.jpg
 data_utils/*.png
 data_utils/*.txt
 results/*
+pohang*.yaml
+
