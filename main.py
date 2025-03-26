@@ -9,6 +9,7 @@ from ultralytics import YOLO
 from ultralytics import settings
 from ultralytics.utils.downloads import attempt_download_asset
 import  matplotlib.pyplot as PIL
+from data_utils.data_utils_pohang import DataGenerator
 
 class Model_Trainer():
     def __init__(self,data_dir,weight_dir,output_dir,run_dir='./runs',model_config='./yolov8.yaml',data_config='pohang.yaml'):
@@ -85,16 +86,19 @@ class Model_Trainer():
         for i,label in enumerate(label_list):
             if label.split('.')[0] + '.png' in img_list:
               valid_list.append(label.split('.')[0] + '.png')
-        for i,(img,label) in tqdm(enumerate(zip(valid_list,label_list))):
+        for (img,label) in tqdm(zip(valid_list,label_list)):
             r = random.random()
             if r < 0.1:
                 target = 'test'
-            elif r < 0.2:
+            elif r < 0.3:
                 target = 'val'
             else:
                 target = 'train'
-            shutil.copy(os.path.join(self.data_dir,'left_images',img),os.path.join(self.data_dir,target,'images',img))
-            shutil.copy(os.path.join(self.data_dir,'annotations',label),os.path.join(self.data_dir,target,'labels',label))
+            shutil.move(os.path.join(self.data_dir,'left_images',img),os.path.join(self.data_dir,target,'images',img))
+            shutil.move(os.path.join(self.data_dir,'annotations',label),os.path.join(self.data_dir,target,'labels',label))
+            
+    def train(self, epochs=100, imgsz=640, batch=32, pretrained=False):
+        results = self.model.train(data=self.data_config, epochs=epochs, imgsz=imgsz, batch=batch, pretrained=pretrained)
 
     def eval(self,exp_name):
         self.model = YOLO((os.path.join(self.run_dir,exp_name,'weights','best.pt')))
@@ -102,18 +106,51 @@ class Model_Trainer():
         metrics.box.map  # map50-95
         metrics.box.map50  # map50
         metrics.box.map75  # map75
-        metrics.box.maps  # a list contains map50-95 of each category     
-        
+        metrics.box.maps  # a list contains map50-95 of each category
+
+    def inference(self,model,img_list,output_dir):
+        self.model = YOLO((os.path.join(self.run_dir,model,'weights','best.pt')))
+        img_listdir = []
+        for img_name in img_list:
+            if os.path.exists(os.path.join(self.data_dir,'left_images',str(img_name).zfill(6)+'.png')):
+                img_listdir.append(os.path.join(self.data_dir,'left_images',str(img_name).zfill(6)+'.png'))
+        # result_list = self.model.predict(img_listdir, save_dir=output_dir,save=True,stream=True)
+        result_list = []
+        for img in tqdm(img_listdir):
+            result_list.append(self.model.predict(img,save_dir=output_dir,save=True))
+        # results = self.model(img_listdir)
+        # os.makedirs(os.path.join(output_dir,model),exist_ok=True)
+        # for result,img_name in zip(results,img_list):
+        #     result.save(filename=os.path.join(output_dir,model,str(img_name.zfill(6))+'.png'))
+        #     result_list.append(result)s
+        #     
+        return result_list
   
 if __name__ == '__main__':
-    model_trainer = Model_Trainer(r'D:\hd\dataset\poang01\stereo',r'.\weights',r'D:\hd\ship_detection\results\wo_train_v8')
-    model_trainer.split_dataset()
+    base_dir = r'D:\hd\dataset\poang01'
+    data_dir = r'D:\hd\dataset\poang01'
+    img_dir = os.path.join(data_dir,r'stereo\left_images')
+    # img_dir = r'E:\Python_Project\Ship_Detection\dataset\Pohang\poang00\stereo\left_images'
+    xband_dir = os.path.join(data_dir,'X-band')
+    lidar_dir = os.path.join(data_dir,r'lidar_front\points')
+    calib_dir = os.path.join(base_dir,'calibration')
+    label_dir = r'E:\Python_Project\Ship_Detection\dataset\Pohang\poang00\labels\all\left'
+    output_dir = r'D:\hd\ship_detection\results\pohang01\train5'
+    model_trainer = Model_Trainer(r'D:\hd\dataset\poang01\stereo',r'.\weights',r'D:\hd\ship_detection\results\wo_train_v8',data_config='pohang_night.yaml')
+    dataloader = DataGenerator(data_dir, img_dir, xband_dir,lidar_dir,calib_dir,label_dir)
+    # model_trainer.split_dataset()
+    # model_trainer.train(epochs=100)
     # result = model_trainer.inference_single(model_name = 'yolov8l',img_name='006210.png')
     # model_trainer.download()
     # Train
     # model = YOLO("yolov8l.yaml")
-    # results = model.train(data="pohang.yaml", epochs=100, imgsz=640, batch=16)
     # print(settings)
     # print(model.info())
-    # model_trainer.eval('detect/train4')
+    # model_trainer.eval('detect/train5')
+    model_trainer.inference('detect/train5',list(range(300,2600)),output_dir)
+    result_list = []
+    for img in sorted(os.listdir(r'D:\hd\ship_detection\runs\detect\predict3')):
+        if 'jpg' in img:
+            result_list.append(cv2.imread(os.path.join(r'D:\hd\ship_detection\runs\detect\predict3',img)))
+    dataloader.gen_video(result_list[:500],r'D:\hd\ship_detection\runs\detect\train5\video.avi')
     

@@ -63,7 +63,7 @@ class DataGenerator:
         w, h = video_list[0].shape[1], video_list[0].shape[0]
         fourcc = cv2.VideoWriter_fourcc(*'XVID')
         out = cv2.VideoWriter(out_dir, fourcc, fps, (w, h))  # 使用 fps 参数
-        for img in video_list:
+        for img in tqdm(video_list):
             out.write(img)
         out.release()
 
