@@ -254,7 +254,7 @@ class DataGenerator:
          
         return (cam_K, cam_R, cam_T, cam_dis), (lidar_R, lidar_T)        
     
-    def project_pointcloud_lidar_to_image(self, pointcloud, image, cam_K, cam_R, cam_T, cam_dis, lidar_R, lidar_T):
+    def project_pointcloud_lidar_to_image(self, pointcloud, image, cam_K, cam_R, cam_T, cam_dis, lidar_R, lidar_T, mask=None):
         """
         将点云投影到图像上，并在图像上绘制投影点。
 
@@ -292,11 +292,18 @@ class DataGenerator:
 
         img_with_projection = image.copy()
         # for u, v in points_2d_undistorted[:, 0, :]:
-        for u, v in points_2d.T:
-            u, v = int(u), int(v)
-            if 0 <= u < image.shape[1] and 0 <= v < image.shape[0]:
-                # cv2.circle(img_with_projection, (image.shape[1] - u,image.shape[0] - v), 3, (0, 0, 255), -1)
-                cv2.circle(img_with_projection, (u,v), 3, (0, 0, 255), -1)
+        if mask == None:
+            for u, v in points_2d.T:
+                u, v = int(u), int(v)
+                if 0 <= u < image.shape[1] and 0 <= v < image.shape[0]:
+                    # cv2.circle(img_with_projection, (image.shape[1] - u,image.shape[0] - v), 3, (0, 0, 255), -1)
+                    cv2.circle(img_with_projection, (u,v), 3, (0, 0, 255), -1)
+        else:
+            mask_points = np.array(list(zip(mask['x'], mask['y'])), dtype=np.int32)
+            for u, v in points_2d.T:
+                if cv2.pointPolygonTest(mask_points, (u, v), False) >= 0:  # Check if the point is inside the mask
+                    cv2.circle(img_with_projection, (int(u), int(v)), 3, (0, 0, 255), -1)
+            
 
         return img_with_projection
     
@@ -380,6 +387,41 @@ class DataGenerator:
         # plt.show()
         # plt.savefig('projection.jpg')
         return img_with_projection
+
+    def visualize_projection_masked(self, lidar_name, img_name, mask):
+        """
+        可视化 LiDAR 点云投影到图像上。
+
+        参数:
+        - lidar_file_name: LiDAR 数据文件名（不含路径）。
+        - img_name: 图像文件名（不含路径）。
+        - mask: mask for the image
+        """
+        # load image
+        img = cv2.imread(os.path.join(self.img_dir, img_name))
+        # load pointcloud
+        cloud_points = self.process_lidar(lidar_name)
+        distances = np.linalg.norm(cloud_points[:, :2], axis=1)  # Compute distance for [x, y, z]
+        min_range = 4.0
+        max_range = 150.0
+        # Filter points that are closer than the minimum range
+        cloud_points = cloud_points[(distances >= min_range) & (distances <= max_range)]
+        
+        # load calibration
+        cam_calib, lidar_calib = self.load_calibration()
+        cam_K, cam_R, cam_T, cam_dis = cam_calib
+        lidar_R, lidar_T = lidar_calib
+        # project pointcloud to image
+        # empty_numpy = np.ones((img.shape[0], img.shape[1], 3), dtype=np.uint8) * 255
+        # img = empty_numpy
+        img_with_projection = self.project_pointcloud_lidar_to_image(cloud_points[:,:3], img, cam_K, cam_R, cam_T, cam_dis, lidar_R, lidar_T,mask)
+        # plt.figure(figsize=(img.shape[0] // 20, img.shape[1] // 20))
+        # plt.imshow(cv2.cvtColor(np.hstack([img,img_with_projection]), cv2.COLOR_BGR2RGB))
+        # plt.imshow(cv2.cvtColor(img_with_projection, cv2.COLOR_BGR2RGB))
+        # plt.show()
+        # plt.savefig('projection.jpg')
+        return img_with_projection
+
     
     def visualize_projection_video(self):
         video_list = []
@@ -399,6 +441,19 @@ class DataGenerator:
         img = self.visualize_projection(match_dict[img_name],img_name)
         img_n,ext = img_name.split('.')
         cv2.imwrite(os.path.join(self.result_dir,img_n + '-lidar.' + ext),img)
+        
+    def visualize_projection_single_masked(self,img_name='006210.png',json_name='006210-seg.json'):
+        match_dict = {}
+        if not os.path.exists('match_list_pohang.txt'):
+            self.create_match_list()
+        with open('match_list_pohang.txt') as f:
+            for line in f:
+                im,st = ast.literal_eval(line.strip())
+                match_dict[im] = st
+        json_file = json.loads(json.load(open(os.path.join(self.result_dir,json_name))))
+        img = self.visualize_projection_masked(match_dict[img_name],img_name,json_file[1]['segments'])
+        img_n,ext = img_name.split('.')
+        cv2.imwrite(os.path.join(self.result_dir,img_n + '-3d_box.' + ext),img)
         
         
 
@@ -438,7 +493,7 @@ if __name__ == '__main__':
     # data_loader.visualize_lidar(data_loader.process_lidar('1625124970162969390.bin'))
     # data_loader.visualize_lidar_video()
     # data_loader.visualize_projection_video()
-    data_loader.visualize_projection_single()
+    data_loader.visualize_projection_single_masked()
 
     
         

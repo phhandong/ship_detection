@@ -1,6 +1,8 @@
 import os
+import argparse
 import cv2
 import numpy as np
+import json
 import random
 import time
 import shutil
@@ -66,8 +68,13 @@ class Model_Trainer():
         results[0].show()
         results = results[0].cpu()
         img_n,ext = img_name.split('.')
+        
         if '-' in model_name:            
             output_name = img_n + '-' + model_name.split('-')[-1] + '.' + ext
+            json_name = img_n + '-' + model_name.split('-')[-1] + '.json'
+            
+            with open(os.path.join(self.output_dir,json_name), 'w') as f:
+                json.dump(results.to_json(), f, indent=4)
             self.draw_mask(results.orig_img,results.masks.xy,img_name)
         else:
             output_name = img_name
