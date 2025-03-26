@@ -8,7 +8,7 @@ from tqdm import tqdm
 import open3d as o3d
 
 class DataGenerator:
-    def __init__(self, base_dir, img_dir, xband_dir,lidar_dir,calib_dir,label_dir,result_dir=r'E:\Python_Project\Ship_Detection\yolo8\results\wo_train_v8'):
+    def __init__(self, base_dir, img_dir, xband_dir,lidar_dir,calib_dir,label_dir,dynamic_dir,result_dir=r'E:\Python_Project\Ship_Detection\yolo8\results\wo_train_v8'):
         self.base_dir = base_dir
         self.img_dir = img_dir
         self.xband_dir = xband_dir
@@ -16,6 +16,7 @@ class DataGenerator:
         self.calib_dir = calib_dir
         self.label_dir = label_dir 
         self.result_dir = result_dir
+        self.dynamic_dir = dynamic_dir
         self.file_list = list(set(f.split('.')[0] for f in os.listdir(img_dir)))
         self.file_list.sort()
         self.labeled = []
@@ -57,7 +58,7 @@ class DataGenerator:
     def visualize_rgb_video(self):
         for img_name in tqdm(self.file_list[:2500]):
             self.img_list.append(self.visualize_rgb(img_name))
-        self.gen_video(self.img_list, 'Pohang_camright.avi')
+        self.DELvideo(self.img_list, 'Pohang_camright.avi')
     
     def gen_video(self, video_list, out_dir, fps=60):
         w, h = video_list[0].shape[1], video_list[0].shape[0]
@@ -91,6 +92,23 @@ class DataGenerator:
         # pointcloud.append([x, y, z, intensity])
         return np.array(pointscloud)
 
+    def load_pcd_data(self, file_name):
+        """
+        加载 PCD 点云数据 (.pcd 文件)。
+
+        参数:
+        - file_name: PCD 数据文件的完整路径。
+
+        返回:
+        - pointcloud: 点云数据，形状为 (N, 4)
+        """
+        file_dir = os.path.join(self.dynamic_dir, file_name)
+        pcd = o3d.io.read_point_cloud(file_dir)
+        points = np.asarray(pcd.points)
+        colors = np.asarray(pcd.colors)
+        pointcloud = np.hstack((points, colors))
+        return pointcloud
+
     def visualize_lidar(self, pointcloud):
         """
         可视化 LiDAR 点云数据。
@@ -103,6 +121,18 @@ class DataGenerator:
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(pointcloud[:, :3])  # 只使用 x, y, z
         o3d.visualization.draw_geometries([pcd])
+        
+    # def visualize_pcd(self, pointcloud):
+    #     """
+    #     可视化 PCD 点云数据。
+
+    #     参数:
+    #     - pointcloud: 点云数据，形状为 (N, 4)，每行是 (x, y, z, intensity)。
+    #     """
+
+    #     # 创建 Open3D 点云对象
+    #     pcd = o3d.geometry.PointCloud()
+    #     pcd.points = o3d.utility.Vector3dVector(pointcloud[:, :3])  # 只使用 x, y, z
     
     def visualize_lidar_video(self, output_video='lidar_visualization.avi', fps=30):
         """
@@ -457,8 +487,6 @@ class DataGenerator:
         
         
 
-
-
 if __name__ == '__main__':
     base_dir = r'E:\Python_Project\Ship_Detection\dataset\Pohang\poang00'
     data_dir = r'E:\Python_Project\Ship_Detection\dataset\Pohang\poang00'
@@ -493,7 +521,8 @@ if __name__ == '__main__':
     # data_loader.visualize_lidar(data_loader.process_lidar('1625124970162969390.bin'))
     # data_loader.visualize_lidar_video()
     # data_loader.visualize_projection_video()
-    data_loader.visualize_projection_single_masked()
+    point_cloud = data_loader.visualize_projection_single_masked()
+    
 
     
         
