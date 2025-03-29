@@ -22,6 +22,7 @@ class DataGenerator:
         self.labeled = []
         self.img_list = []
         self.lidar_list = []
+        self.match_list = []
         
     def sample_loader(self, img_name):
         img = cv2.imread(os.path.join(self.img_dir, img_name + '.png'))
@@ -284,7 +285,7 @@ class DataGenerator:
          
         return (cam_K, cam_R, cam_T, cam_dis), (lidar_R, lidar_T)        
     
-    def project_pointcloud_lidar_to_image(self, pointcloud, image, cam_K, cam_R, cam_T, cam_dis, lidar_R, lidar_T, mask=None):
+    def project_pointcloud_lidar_to_image(self, pointcloud, image, cam_K, cam_R, cam_T, cam_dis, lidar_R, lidar_T, mask=None,just_project=False, just_K=False):
         """
         将点云投影到图像上，并在图像上绘制投影点。
 
@@ -310,8 +311,12 @@ class DataGenerator:
         cam_TR = np.vstack((np.hstack((cam_R,cam_T.reshape(-1,1))),np.reshape(np.array([0,0,0,1]),(1,-1))))   # (4,4)
         lidar_TR = np.vstack((np.hstack((lidar_R,lidar_T.reshape(-1,1))),np.reshape(np.array([0,0,0,1]),(1,-1))))  # (4,4)
 
-        pointcloud_homogeneous = np.hstack((pointcloud, np.ones((pointcloud.shape[0], 1)))).T  # (4, N)
-        pointcloud_homogeneous = (cam_TR @ lidar_TR @ pointcloud_homogeneous)[:3,:] # (3,N)
+        
+        if not just_K:
+            pointcloud_homogeneous = np.hstack((pointcloud, np.ones((pointcloud.shape[0], 1)))).T  # (4, N)
+            pointcloud_homogeneous = (cam_TR @ lidar_TR @ pointcloud_homogeneous)[:3,:] # (3,N)
+        else:
+            pointcloud_homogeneous = pointcloud.T
         
         points_2d_homogeneous = cam_K @ pointcloud_homogeneous  # (3, N)
 
@@ -322,33 +327,66 @@ class DataGenerator:
 
         img_with_projection = image.copy()
         # for u, v in points_2d_undistorted[:, 0, :]:
+        valid_3d_points_list = []   
+        valid_2d_points_list = [] 
+        
         if mask == None:
-            for u, v in points_2d.T:
+            for (p2d,p3d) in zip(points_2d.T, pointcloud_homogeneous.T):
+                u, v = p2d
                 u, v = int(u), int(v)
                 if 0 <= u < image.shape[1] and 0 <= v < image.shape[0]:
                     # cv2.circle(img_with_projection, (image.shape[1] - u,image.shape[0] - v), 3, (0, 0, 255), -1)
-                    cv2.circle(img_with_projection, (u,v), 3, (0, 0, 255), -1)
+                    if not just_project:
+                        cv2.circle(img_with_projection, (u,v), 3, (0, 0, 255), -1)
+                    else:
+                        valid_3d_points_list.append(np.array(p3d))
+                        valid_2d_points_list.append(np.array(p2d))                        
         else:
-            mask_points = np.array(list(zip(mask['x'], mask['y'])), dtype=np.int32)
-            for u, v in points_2d.T:
-                if cv2.pointPolygonTest(mask_points, (u, v), False) >= 0:  # Check if the point is inside the mask
-                    cv2.circle(img_with_projection, (int(u), int(v)), 3, (0, 0, 255), -1)
-            
-
-        return img_with_projection
+            for obj_mask in mask:
+                valid_3d_pt = []
+                valid_2d_pt = []
+                mask_points = np.array(obj_mask, dtype=np.int32)
+                for (p2d,p3d) in zip(points_2d.T, pointcloud_homogeneous.T):
+                    u, v = p2d
+                    u, v = int(u), int(v)
+                    if cv2.pointPolygonTest(mask_points, (u, v), False) >= 0:  # Check if the point is inside the mask
+                        if not just_project:
+                            cv2.circle(img_with_projection, (int(u), int(v)), 3, (0, 0, 255), -1)
+                        else:
+                            valid_3d_pt.append(np.array(p3d))
+                            valid_2d_pt.append(np.array(p2d))
+                valid_3d_points_list.append(np.array(valid_3d_pt))
+                valid_2d_points_list.append(np.array(valid_2d_pt))
+        if not just_project:
+            return img_with_projection
+        else:
+            return (valid_3d_points_list,valid_2d_points_list)
     
-    def create_match_list(self):
+    def create_match_list(self,type=list):
         self.img_list = sorted(os.listdir(self.img_dir))
         self.lidar_list = sorted(os.listdir(self.lidar_dir))
         img_timestamp_dict = {}
-        with open('match_list_pohang.txt') as f:
-            for line in f:
-                timestamp,img_name = line.strip().split()
-                timestamp = timestamp.split('.')
-                timestamp = timestamp[0] + timestamp[1]
-                img_timestamp_dict[img_name+'.png'] = int(timestamp)
-        
         match_list = []
+        match_dict = {}
+        if os.path.exists('match_list_pohang.txt'):
+            with open('match_list_pohang.txt') as f:
+                for line in f:
+                    im,st = ast.literal_eval(line.strip())
+                    match_dict[im] = st
+                    match_list.append([im,st])
+            if type==list:
+                return match_list
+            else:
+                return match_dict
+        
+        
+        if os.path.exists(os.path.join(os.path.dirname(self.img_dir),'timestamp.txt')):
+            with open(os.path.join(os.path.dirname(self.img_dir),'timestamp.txt')) as f:
+                for line in f:
+                    timestamp,img_name = line.strip().split()
+                    timestamp = timestamp.split('.')
+                    timestamp = timestamp[0] + timestamp[1]
+                    img_timestamp_dict[img_name+'.png'] = int(timestamp)                
 
         def extract_timestamp(filename):
             timestamp_str = filename.split('.')[0]
@@ -357,15 +395,15 @@ class DataGenerator:
             except ValueError:
                 return None
 
-        img_timestamp = [(img_name, extract_timestamp(img_name)) for img_name in self.img_list]
+        img_timestamps = [(img_name, extract_timestamp(img_name)) for img_name in self.img_list]
         lidar_timestamps = [(lidar_name, extract_timestamp(lidar_name)) for lidar_name in self.lidar_list]
-
-        img_timestamps = []
-        for (img_name, img_timestamp) in img_timestamp:
-            if img_name in img_timestamp_dict.keys():
-                img_timestamps.append((img_name, img_timestamp_dict[img_name]))        
         
-        for i, (img_name, img_timestamp) in enumerate(img_timestamps):
+        valid_timestamps = []
+        for (img_name, img_timestamp) in img_timestamps:
+            if img_name in img_timestamp_dict.keys():
+                valid_timestamps.append((img_name, img_timestamp_dict[img_name]))        
+        
+        for i, (img_name, img_timestamp) in enumerate(valid_timestamps):
             if img_timestamp is None:
                 continue
             closest_lidar_name = None
@@ -379,13 +417,16 @@ class DataGenerator:
                     closest_lidar_name = lidar_name
 
             if closest_lidar_name:
+                match_dict[img_name] = closest_lidar_name
                 match_list.append([img_name, closest_lidar_name])
 
         with open('match_list_pohang.txt', 'w') as f:
             for item in match_list:
                 f.write("%s\n" % str(item))
-
-        return match_list
+        if type == list:
+            return match_list
+        else:
+            return match_dict
     
     def visualize_projection(self, lidar_name, img_name):
         """
@@ -480,6 +521,7 @@ class DataGenerator:
             for line in f:
                 im,st = ast.literal_eval(line.strip())
                 match_dict[im] = st
+        match_dict = self.create_match_list()
         json_file = json.loads(json.load(open(os.path.join(self.result_dir,json_name))))
         img = self.visualize_projection_masked(match_dict[img_name],img_name,json_file[1]['segments'])
         img_n,ext = img_name.split('.')
@@ -496,7 +538,8 @@ if __name__ == '__main__':
     lidar_dir = os.path.join(data_dir,r'lidar_front\points')
     calib_dir = os.path.join(base_dir,'calibration')
     label_dir = r'E:\Python_Project\Ship_Detection\dataset\Pohang\poang00\labels\all\left'
-    data_loader = DataGenerator(data_dir, img_dir, xband_dir,lidar_dir,calib_dir,label_dir)
+    dynamic_dir = os.path.join(data_dir,r'labels\dynamic')
+    data_loader = DataGenerator(data_dir, img_dir, xband_dir, lidar_dir,calib_dir,label_dir,dynamic_dir)
 
     """   
     # convert calibration txt files to json files
@@ -520,8 +563,8 @@ if __name__ == '__main__':
     # data_loader.visualize_projection('1724240642520185841.bin', '1724240641715529007.jpg')
     # data_loader.visualize_lidar(data_loader.process_lidar('1625124970162969390.bin'))
     # data_loader.visualize_lidar_video()
-    # data_loader.visualize_projection_video()
-    point_cloud = data_loader.visualize_projection_single_masked()
+    data_loader.visualize_projection_video()
+    # point_cloud = data_loader.visualize_projection_single_masked()
     
 
     
