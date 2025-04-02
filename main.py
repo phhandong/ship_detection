@@ -5,6 +5,7 @@ import numpy as np
 import json
 import random
 import time
+import yaml
 import shutil
 from tqdm import tqdm
 from ultralytics import YOLO
@@ -121,54 +122,68 @@ class Model_Trainer():
         metrics.box.map75  # map75
         metrics.box.maps  # a list contains map50-95 of each category
 
-    def inference(self,model='yolov8l',img_index=range(100),lidar_points=True,box=True,mask=True,box_3d=True,output_dir='./results'):
+    def inference(self,weight_dir = './weight',model='yolov8l',img_index=range(100),lidar_points=True,box=True,mask=True,box_3d=True,seg=True,output_dir='./results'):
         # self.model = YOLO((os.path.join(self.run_dir,model,'weights','best.pt')))
 
-        self.model = YOLO((os.path.join(self.weight_dir,model+'.pt')))
+        self.model = YOLO((os.path.join(weight_dir,model+'.pt')))
         
         img_list = [str(i).zfill(6)+'.png' for i in img_index]
         result_list = []
         output_list= []
         for img_name in tqdm(img_list):
-            result_list.append(self.model.predict(os.path.join(self.data_dir,'left_images',img_name),save_dir=output_dir,save=True))
-        
-        for img_name,result in zip(img_list,result_list):
-            result = result[0]
-            img = result.orig_img
+            result_list.append(self.model.predict(os.path.join(self.data_dir,'left_images',img_name),save_dir=output_dir,save=False))
+            
+            
+        if lidar_points or box_3d:
             cam_calib, lidar_calib = self.dataloader.load_calibration()
             cam_K, cam_R, cam_T, cam_dis = cam_calib
             cloud_points = self.dataloader.load_lidar_data(os.path.join(self.dataloader.lidar_dir,self.match_dict[img_name]))
             lidar_R, lidar_T = lidar_calib
-            if 'seg' in model:
+        
+        for img_name,result in tqdm(zip(img_list,result_list)):
+            result = result[0]
+            img = result.orig_img
+            if 'seg' in model or seg:
                 if mask:
                     img = self.draw_mask(img, result.masks.xy)
-            if lidar_points:                
-                img = self.dataloader.project_pointcloud_lidar_to_image(cloud_points[:,:3],img,cam_K, cam_R, cam_T,cam_dis, lidar_R, lidar_T,result.masks.xy)
-            if box_3d:
-                img = self.fusion_processor.fuse(img,cloud_points[:,:3],result,erosion_factor = 25, depth_factor= 10)
+                if lidar_points:                
+                    img = self.dataloader.project_pointcloud_lidar_to_image(cloud_points[:,:3],img,cam_K, cam_R, cam_T,cam_dis, lidar_R, lidar_T,result.masks.xy)
+                if box_3d:
+                    img = self.fusion_processor.fuse(img,cloud_points[:,:3],result,erosion_factor = 25, depth_factor= 10,normal_z=True)
+
             cv2.imwrite(os.path.join(output_dir,img_name),img)
             output_list.append(img)
         
-        # results = self.model(img_listdir)
-        # os.makedirs(os.path.join(output_dir,model),exist_ok=True)
-        # for result,img_name in zip(results,img_list):
-        #     result.save(filename=os.path.join(output_dir,model,str(img_name.zfill(6))+'.png'))
-        #     result_list.append(result)
         return output_list
   
 if __name__ == '__main__':
-    data_dir = r'E:\Python_Project\Ship_Detection\dataset\Pohang\poang00'
+    
+    config_path = 'config.yaml'
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+    paths = config["paths"]
+    settings = config["settings"]
+
+    data_dir = paths["data_dir"]
+    label_dir = paths["label_dir"]
+    dynamic_dir = paths["dynamic_dir"]
+    output_dir = paths["output_dir"]
+    weight_dir = paths["weight_dir"]
+    run_dir = paths["run_dir"]
+
+    data_config = settings["data_config"]
+    model_config = settings["model_config"]
+    video_output = settings["video_output"]
+    fps = settings["fps"]
+    
     img_dir = os.path.join(data_dir,r'stereo')
-    # img_dir = r'E:\Python_Project\Ship_Detection\dataset\Pohang\poang00\stereo\left_images'
     xband_dir = os.path.join(data_dir,'X-band')
-    lidar_dir = os.path.join(data_dir,r'lidar_front\points')
+    lidar_dir = os.path.join(data_dir,r'lidar_front/points')
     calib_dir = os.path.join(data_dir,'calibration')
-    label_dir = r'E:\Python_Project\Ship_Detection\dataset\Pohang\poang00\labels\all\left'
-    dynamic_dir = r'E:\Python_Project\Ship_Detection\dataset\Pohang\poang00\labels\dynamic\00_dynamic_lidar_label'
-    output_dir = r'E:\Python_Project\Ship_Detection\yolo8\results\wo_train_v8\box_3d'
+    
     dataloader = DataGenerator(data_dir, img_dir, xband_dir, lidar_dir, calib_dir, label_dir, dynamic_dir)
     fusion_processor = Fusion(dataloader=dataloader,PCA=True)
-    model_trainer = Model_Trainer(dataloader = dataloader, fusion_processor = fusion_processor, data_dir = img_dir, weight_dir = r'.\weights',output_dir = output_dir, data_config='pohang_night.yaml')
+    model_trainer = Model_Trainer(dataloader = dataloader, fusion_processor = fusion_processor, data_dir = img_dir, weight_dir = weight_dir,output_dir = output_dir, data_config=data_config)
     
     # model_trainer.split_dataset()
     # model_trainer.train(epochs=100)
@@ -181,11 +196,11 @@ if __name__ == '__main__':
     # model_trainer.eval('detect/train5')
     
     
-    # result_list = model_trainer.inference('yolov8l-seg',range(11200,11300),lidar_points=True,box=False,mask=True,box_3d=True,output_dir=output_dir)
+    result_list = model_trainer.inference(weight_dir,'yolov8l-seg',range(11250,11300),lidar_points=True,box=False,mask=True,box_3d=True,output_dir=output_dir)
     
     result_list = []
-    for img in sorted(os.listdir(r'E:\Python_Project\Ship_Detection\yolo8\results\wo_train_v8\box_3d')):
+    for img in sorted(os.listdir(output_dir)):
         if 'png' in img:
-            result_list.append(cv2.imread(os.path.join(r'E:\Python_Project\Ship_Detection\yolo8\results\wo_train_v8\box_3d',img)))
-    dataloader.gen_video(result_list,r'E:\Python_Project\Ship_Detection\yolo8\results\wo_train_v8\video.avi',fps=10)
+            result_list.append(cv2.imread(os.path.join(output_dir,img)))
+    dataloader.gen_video(result_list,r'E:\Python_Project\Ship_Detection\yolo8\results\wo_train_v8\video_3d.avi',fps=10)
     

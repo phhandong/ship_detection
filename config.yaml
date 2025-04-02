@@ -1,0 +1,13 @@
+paths:
+  data_dir: 'E:/Python_Project/Ship_Detection/dataset/Pohang/poang00'
+  label_dir: 'E:/Python_Project/Ship_Detection/dataset/Pohang/poang00/labels/all/left'
+  dynamic_dir: 'E:/Python_Project/Ship_Detection/dataset/Pohang/poang00/labels/dynamic/00_dynamic_lidar_label'
+  output_dir: 'E:/Python_Project/Ship_Detection/yolo8/results/wo_train_v8/box_3d'
+  weight_dir: './weights'
+  run_dir: './runs'
+
+settings:
+  data_config: 'pohang_night.yaml'
+  model_config: 'yolov8.yaml'
+  video_output: 'E:/Python_Project/Ship_Detection/yolo8/results/wo_train_v8/video.avi'
+  fps: 10

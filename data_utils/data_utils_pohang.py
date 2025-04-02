@@ -68,7 +68,16 @@ class DataGenerator:
         for img in tqdm(video_list):
             out.write(img)
         out.release()
+    
+    def gen_video_dir(self, video_dir, out_dir, range = None, fps=60):
+        img_list = []
+        for i in sorted(os.listdir(video_dir)):
+            if i in ['.jpg','.png','.bmp']:
+                img_list.append(cv2.imread(os.path.join(video_dir,i)))
 
+        if range == None:
+            self.gen_video(img_list,out_dir,fps)         
+        
     def load_lidar_data(self, file_name):
         """
         加载 LiDAR 点云数据 (.bin 文件)。
@@ -305,18 +314,15 @@ class DataGenerator:
         # 构造齐次变换矩阵
         
         # inv(cam_TR)
-        cam_R = cam_R.T
-        cam_T = - cam_R @ cam_T
-        
-        cam_TR = np.vstack((np.hstack((cam_R,cam_T.reshape(-1,1))),np.reshape(np.array([0,0,0,1]),(1,-1))))   # (4,4)
-        lidar_TR = np.vstack((np.hstack((lidar_R,lidar_T.reshape(-1,1))),np.reshape(np.array([0,0,0,1]),(1,-1))))  # (4,4)
-
-        
         if not just_K:
+            cam_R = cam_R.T
+            cam_T = - cam_R @ cam_T
+            cam_TR = np.vstack((np.hstack((cam_R,cam_T.reshape(-1,1))),np.reshape(np.array([0,0,0,1]),(1,-1))))   # (4,4)
+            lidar_TR = np.vstack((np.hstack((lidar_R,lidar_T.reshape(-1,1))),np.reshape(np.array([0,0,0,1]),(1,-1))))  # (4,4)
             pointcloud_homogeneous = np.hstack((pointcloud, np.ones((pointcloud.shape[0], 1)))).T  # (4, N)
             pointcloud_homogeneous = (cam_TR @ lidar_TR @ pointcloud_homogeneous)[:3,:] # (3,N)
         else:
-            pointcloud_homogeneous = pointcloud.T
+            pointcloud_homogeneous = pointcloud.T   # (3,N)
         
         points_2d_homogeneous = cam_K @ pointcloud_homogeneous  # (3, N)
 

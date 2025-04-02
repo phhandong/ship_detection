@@ -5,6 +5,7 @@ from sklearn.cluster import DBSCAN
 import open3d as o3d
 from data_utils.data_utils_pohang import DataGenerator
 from ultralytics import YOLO
+from tqdm import tqdm
 
 
 class Fusion():
@@ -15,12 +16,24 @@ class Fusion():
         self.last_ground_center_of_id = {}
         self.output_dir = r'E:\Python_Project\Ship_Detection\yolo8\results\wo_train_v8' 
         
-    def fuse(self,img,cloud_points,result,img_name=None,lidar_name=None,erosion_factor = 25, depth_factor= 10):
+    def fuse(self,img,cloud_points,result,img_name=None,lidar_name=None,erosion_factor = 25, depth_factor= 10,normal_z=False):
         all_corner,all_points,cam_calib, lidar_calib = self.process(img,cloud_points,result,erosion_factor,depth_factor)
-        for corner,point in zip(all_corner,all_points):
-            img = self.draw_box(img,corner,(cam_calib,lidar_calib))
-            
-        # cv2.imwrite(os.path.join(self.output_dir,img_name),img)
+        
+        cam_K, cam_R, cam_T, cam_dis = cam_calib
+        lidar_R, lidar_T = lidar_calib
+        for corner,point in zip(all_corner,all_points):            
+            if normal_z:
+                # corner_n = self.normal_z(corner,axis=2)
+                # corner_n = self.normal_y(corner_n,axis=1)
+                # corner_n = self.normal_x(corner_n,axis=0)
+                corner_n = corner.copy()
+                pts_3d,pts_2d = self.dataloader.project_pointcloud_lidar_to_image(corner_n, img, cam_K, cam_R, cam_T, cam_dis, lidar_R, lidar_T, just_project=True,just_K=True)
+                pts_2d_n = pts_2d.copy()
+                pts_2d = self.normal_x_2d(pts_2d,axis=0)
+                pts_2d = self.normal_y_2d(pts_2d,axis=1)
+            else:
+                pts_3d,pts_2d = self.dataloader.project_pointcloud_lidar_to_image(corner, img, cam_K, cam_R, cam_T, cam_dis, lidar_R, lidar_T, just_project=True,just_K=True)                
+            img = self.draw_box(img,pts_2d)
         return img
         
         
@@ -97,22 +110,110 @@ class Fusion():
 
         return edges
     
-    def draw_box(self,ori_img,box,calib,color=(0,0,255)):
-        cam_calib, lidar_calib = calib
-        cam_K, cam_R, cam_T, cam_dis = cam_calib
-        lidar_R, lidar_T = lidar_calib
-        img = ori_img.copy()
-        pts_3d,pts_2d = self.dataloader.project_pointcloud_lidar_to_image(box, img, cam_K, cam_R, cam_T, cam_dis, lidar_R, lidar_T, just_project=True,just_K=True)
-        if pts_2d != []:
-            edge_2d = self.get_pred_bbox_edges(pts_2d)
+    def draw_box(self,ori_img,box,color=(0,0,255)):
+        
+        """
+           6 -------- 1
+          /|         /|
+         / |        / |
+        3 -------- 0  |
+        |  |       |  |
+        |  4 ------|--7
+        | /        | /
+        |/         |/
+        5 -------- 2 
+        """
+        
+        if box != []:
+            edge_2d = self.get_pred_bbox_edges(box)
             for pred_edge in edge_2d:
                 pt1 = tuple(np.int32(pred_edge[0]))
                 pt2 = tuple(np.int32(pred_edge[1]))
-                cv2.line(img, pt1, pt2, color, 3)
-        return img
+                cv2.line(ori_img, pt1, pt2, color, 3)
+                
+        # for idx, point in enumerate(box):
+        #     point = tuple(np.int32(point))
+        #     cv2.circle(ori_img, point, 5, (0, 255, 0), -1)  # 绘制点
+        #     cv2.putText(ori_img, str(idx), (point[0] + 5, point[1] - 5), 
+        #                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)  # 添加标号
+            
+        return ori_img
+
+    def normal_z(self,box,axis=2):
+        top = (box[1][axis] + box[7][axis] + box[6][axis] + box[4][axis]) /4
+        bottom = (box[0][axis] + box[2][axis] + box[5][axis] + box[3][axis]) /4
+        box[1][axis] = top
+        box[7][axis] = top
+        box[6][axis] = top
+        box[4][axis] = top
+        box[0][axis] = bottom
+        box[2][axis] = bottom
+        box[5][axis] = bottom
+        box[3][axis] = bottom
+        return box
         
-        
-        
+    def normal_y(self,box,axis=1):
+
+        m1 = (box[0][axis] + box[2][axis])/2
+        m2 = (box[3][axis] + box[5][axis])/2
+        m3 = (box[1][axis] + box[7][axis])/2
+        m4 = (box[4][axis] + box[6][axis])/2
+        box[0][axis] = m1
+        box[2][axis] = m1
+        box[3][axis] = m2
+        box[5][axis] = m2
+        box[1][axis] = m3
+        box[7][axis] = m3
+        box[4][axis] = m4
+        box[6][axis] = m4
+        return box
+
+    def normal_x(self,box,axis=0):
+
+        m1 = (box[0][axis] + box[3][axis])/2
+        m2 = (box[1][axis] + box[6][axis])/2
+        m3 = (box[2][axis] + box[5][axis])/2
+        m4 = (box[4][axis] + box[7][axis])/2
+        box[0][axis] = m1
+        box[3][axis] = m1
+        box[1][axis] = m2
+        box[6][axis] = m2
+        box[2][axis] = m3
+        box[5][axis] = m3
+        box[4][axis] = m4
+        box[7][axis] = m4
+        return box   
+    
+    def normal_x_2d(self,box,axis=0):
+        m1 = (box[7][axis] + box[1][axis])/2
+        m2 = (box[3][axis] + box[5][axis])/2
+        m3 = (box[2][axis] + box[0][axis])/2
+        m4 = (box[4][axis] + box[6][axis])/2
+        box[7][axis] = m1
+        box[1][axis] = m1
+        box[3][axis] = m2
+        box[5][axis] = m2
+        box[2][axis] = m3
+        box[0][axis] = m3
+        box[4][axis] = m4
+        box[6][axis] = m4
+        return box
+
+    def normal_y_2d(self,box,axis=1):
+        m1 = (box[5][axis] + box[2][axis])/2
+        m2 = (box[3][axis] + box[0][axis])/2
+        m3 = (box[4][axis] + box[7][axis])/2
+        m4 = (box[1][axis] + box[6][axis])/2
+        box[2][axis] = m1
+        box[5][axis] = m1
+        box[3][axis] = m2
+        box[0][axis] = m2
+        box[4][axis] = m3
+        box[7][axis] = m3
+        box[1][axis] = m4
+        box[6][axis] = m4
+        return box        
+    
     def points_cluster(self,points, eps = 0.5, depth_facter=20):
         min_samples = max(5,int(len(points)*0.1))
         depth = np.sqt(points[:, 0] ** 2 + points[:, 1] **2)
@@ -241,10 +342,10 @@ class Fusion():
         return corners_3d, yaw
     
     def create_bbox_3d_pca_no_z_rotation(self,pts_3d,lidar2cam):
-        pts_3d_cam = lidar2cam @ pts_3d
+        pts_3d_cam = lidar2cam @ pts_3d.T
         
         pt_cloud_2 = o3d.geometry.PointCloud()
-        pt_cloud_2.points = o3d.utility.Vector3dVector(pts_3d_cam)
+        pt_cloud_2.points = o3d.utility.Vector3dVector(pts_3d_cam.T)
         
         obb2 = pt_cloud_2.get_oriented_bounding_box()
         
@@ -293,12 +394,6 @@ class Fusion():
         # Convert 2D points to integer coordinates
         pts_3D_int = np.array(pts_3D).astype(np.int32)
         
-        # Filter points using the mask
-        # inside_mask_indices = mask[pts_2D_int[:, 1], pts_2D_int[:, 0]] == 1
-
-        # # Select corresponding 3D points
-        # all_points_of_object = pts_3D[inside_mask_indices]
-        
         all_points_of_object = pts_3D_int
         """ ------------------------------------------"""
 
@@ -318,20 +413,13 @@ class Fusion():
         yaw = 0
         if PCA:
             # Compute the oriented 3D bounding box (discard the rotation along the z-axis for detected objects other than persons)
-            # if obj_class == 0:
             bbox_corners_3D, yaw = self.create_bbox_3d_pca(np.array(filtered_points_of_object), lidar2cam)
-            # else:
-            #     # Use PCA without z-axis rotation for other classes
-            #     bbox_corners_3D, yaw = self.create_bbox_3d_pca_no_z_rotation(filtered_points_of_object, lidar2cam)
         
         # Note: Pedestrian class always uses PCA 
         else:
             # Compute the oriented 3D bounding box (discard the rotation along the z-axis for detected objects other than persons)
-            # if obj_class == 0:
-            bbox_corners_3D, yaw = self.create_bbox_3d_pca_no_z_rotation(np.array(filtered_points_of_object), lidar2cam)
-            # else:
-            #     # Don't use PCA for classes other than Pedestrians
-            #     bbox_corners_3D = self.create_bbox_3d(filtered_points_of_object, lidar2cam)
+            # bbox_corners_3D, yaw = self.create_bbox_3d_pca_no_z_rotation(np.array(filtered_points_of_object), lidar2cam)
+            bbox_corners_3D = self.create_bbox_3d(filtered_points_of_object, lidar2cam)
 
         return filtered_points_of_object, bbox_corners_3D, yaw
     
