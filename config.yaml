@@ -1,8 +1,8 @@
 paths:
-  data_dir: 'E:/Python_Project/Ship_Detection/dataset/Pohang/poang00'
+  data_dir: 'E:\Python_Project\Ship_Detection\dataset\2025-01-19-11-53-27\cam_images\concat'
   label_dir: 'E:/Python_Project/Ship_Detection/dataset/Pohang/poang00/labels/all/left'
   dynamic_dir: 'E:/Python_Project/Ship_Detection/dataset/Pohang/poang00/labels/dynamic/00_dynamic_lidar_label'
-  output_dir: 'E:/Python_Project/Ship_Detection/yolo8/results/wo_train_v8/box_3d'
+  output_dir: 'E:\Python_Project\Ship_Detection\dataset\2025-01-19-11-53-27\cam_images\result'
   weight_dir: './weights'
   run_dir: './runs'
 

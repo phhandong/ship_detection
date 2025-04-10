@@ -17,8 +17,11 @@ class DataGenerator:
         self.label_dir = label_dir 
         self.result_dir = result_dir
         self.dynamic_dir = dynamic_dir
-        self.file_list = list(set(f.split('.')[0] for f in os.listdir(img_dir)))
-        self.file_list.sort()
+        try:
+            self.file_list = list(set(f.split('.')[0] for f in os.listdir(img_dir)))
+            self.file_list.sort()
+        except:
+            self.file_list = []
         self.labeled = []
         self.img_list = []
         self.lidar_list = []
@@ -115,7 +118,11 @@ class DataGenerator:
         file_dir = os.path.join(self.dynamic_dir, file_name)
         pcd = o3d.io.read_point_cloud(file_dir)
         points = np.asarray(pcd.points)
-        colors = np.asarray(pcd.colors)
+        if pcd.has_colors():
+            colors = np.asarray(pcd.colors)  # 获取颜色数据
+        else:
+            # 如果没有颜色数据，生成默认颜色（白色）
+            colors = np.ones_like(points) 
         pointcloud = np.hstack((points, colors))
         return pointcloud
 
@@ -569,7 +576,10 @@ if __name__ == '__main__':
     # data_loader.visualize_projection('1724240642520185841.bin', '1724240641715529007.jpg')
     # data_loader.visualize_lidar(data_loader.process_lidar('1625124970162969390.bin'))
     # data_loader.visualize_lidar_video()
-    data_loader.visualize_projection_video()
+    # data_loader.visualize_projection_video()
+    data_loader.visualize_lidar(data_loader.load_pcd_data(r'F:\2025-01-19-11-53-27\pointcloud\1737258946.735743000.pcd'))
+    
+    
     # point_cloud = data_loader.visualize_projection_single_masked()
     
 

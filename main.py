@@ -26,9 +26,14 @@ class Model_Trainer():
         self.model_config = model_config
         self.data_config = data_config
         self.model = YOLO(self.model_config)
-        self.match_list = self.dataloader.create_match_list()
-        self.match_dict = self.dataloader.create_match_list(dict)
-   
+        try:
+            self.match_list = self.dataloader.create_match_list()
+            self.match_dict = self.dataloader.create_match_list(dict)
+        except:
+            print('Match list already exists')
+            self.match_dict = {}
+            self.match_list = []
+    
     def download(self):
         # model = YOLO(r"ultralytics\cfg\models\v8\yolov8.yaml")  # build a new model from YAML
       
@@ -70,11 +75,16 @@ class Model_Trainer():
                 
     def inference_single(self,model_name = 'yolov8l-seg',img_name = '006210.png'):
         model = YOLO(os.path.join(self.weight_dir,model_name+'.pt'))  # load a pretrained model (recommended for training)
-        img_dir = os.path.join(self.data_dir,'left_images',img_name)
+        # img_dir = os.path.join(self.data_dir,'left_images',img_name)
+        img_dir = os.path.join(self.data_dir,img_name)
         results = model(img_dir)
         results[0].show()
         results = results[0].cpu()
-        img_n,ext = img_name.split('.')
+        try:
+            img_n,ext = img_name.split('.')
+        except:
+            img_n = img_name
+            ext = 'jpg'
         
         if '-' in model_name:            
             output_name = img_n + '-' + model_name.split('-')[-1] + '.' + ext
@@ -176,7 +186,7 @@ if __name__ == '__main__':
     video_output = settings["video_output"]
     fps = settings["fps"]
     
-    img_dir = os.path.join(data_dir,r'stereo')
+    img_dir = os.path.join(data_dir)
     xband_dir = os.path.join(data_dir,'X-band')
     lidar_dir = os.path.join(data_dir,r'lidar_front/points')
     calib_dir = os.path.join(data_dir,'calibration')
@@ -195,12 +205,14 @@ if __name__ == '__main__':
     # print(model.info())
     # model_trainer.eval('detect/train5')
     
+    # model_trainer.inference_single(model_name = 'yolov8l',img_name='1737258910.228790.jpg')
+    model = YOLO(os.path.join(weight_dir,'yolov8s.pt'))
+    model.export(imgsz=640,format="onnx",simplify=True,optimize=True, name="yolov8s_simp_opt.onnx")
+    # result_list = model_trainer.inference(weight_dir,'yolov8l-seg',range(11250,11300),lidar_points=True,box=False,mask=True,box_3d=True,output_dir=output_dir)
     
-    result_list = model_trainer.inference(weight_dir,'yolov8l-seg',range(11250,11300),lidar_points=True,box=False,mask=True,box_3d=True,output_dir=output_dir)
-    
-    result_list = []
-    for img in sorted(os.listdir(output_dir)):
-        if 'png' in img:
-            result_list.append(cv2.imread(os.path.join(output_dir,img)))
-    dataloader.gen_video(result_list,r'E:\Python_Project\Ship_Detection\yolo8\results\wo_train_v8\video_3d.avi',fps=10)
+    # result_list = []
+    # for img in sorted(os.listdir(output_dir)):
+    #     if 'png' in img:
+    #         result_list.append(cv2.imread(os.path.join(output_dir,img)))
+    # dataloader.gen_video(result_list,r'E:\Python_Project\Ship_Detection\yolo8\results\wo_train_v8\video_3d.avi',fps=10)
     

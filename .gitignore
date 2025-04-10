@@ -183,3 +183,4 @@ data_utils/*.txt
 results/*
 pohang*.yaml
 
+cam_detection/demo/pic/*.jpg
