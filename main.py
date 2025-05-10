@@ -33,11 +33,11 @@ class Model_Trainer():
             print('Match list already exists')
             self.match_dict = {}
             self.match_list = []
-    
+
     def download(self):
-        # model = YOLO(r"ultralytics\cfg\models\v8\yolov8.yaml")  # build a new model from YAML
+        model = YOLO(r"ultralytics\cfg\models\12\yolo12.yaml")  # build a new model from YAML
       
-        assets = [f"yolov8{size}{suffix}.pt" for size in "lx" for suffix in ("", "-cls", "-seg")]
+        assets = [f"yolov12{size}{suffix}.pt" for size in "lx" for suffix in ("", "-cls", "-seg")]
         for x in assets:
             attempt_download_asset(f"weights/{x}")
             
@@ -121,8 +121,11 @@ class Model_Trainer():
             shutil.move(os.path.join(self.data_dir,'left_images',img),os.path.join(self.data_dir,target,'images',img))
             shutil.move(os.path.join(self.data_dir,'annotations',label),os.path.join(self.data_dir,target,'labels',label))
             
-    def train(self, epochs=100, imgsz=640, batch=32, pretrained=False):
-        results = self.model.train(data=self.data_config, epochs=epochs, imgsz=imgsz, batch=batch, pretrained=pretrained)
+    def train(self, epochs=100, imgsz=640, batch=32, pretrained=None):
+        if pretrained==None:
+            results = self.model.train(data=self.data_config, epochs=epochs, imgsz=imgsz, batch=batch,device=1)
+        else:
+            results = self.model.train(data=self.data_config, epochs=epochs, imgsz=imgsz, batch=batch, pretrained=pretrained,device=1)
 
     def eval(self,exp_name):
         self.model = YOLO((os.path.join(self.run_dir,exp_name,'weights','best.pt')))
@@ -193,10 +196,10 @@ if __name__ == '__main__':
     
     dataloader = DataGenerator(data_dir, img_dir, xband_dir, lidar_dir, calib_dir, label_dir, dynamic_dir)
     fusion_processor = Fusion(dataloader=dataloader,PCA=True)
-    model_trainer = Model_Trainer(dataloader = dataloader, fusion_processor = fusion_processor, data_dir = img_dir, weight_dir = weight_dir,output_dir = output_dir, data_config=data_config)
+    model_trainer = Model_Trainer(dataloader = dataloader, fusion_processor = fusion_processor, data_dir = img_dir, weight_dir = weight_dir,output_dir = output_dir,model_config='./yolov8-world.yaml', data_config=data_config)
     
     # model_trainer.split_dataset()
-    # model_trainer.train(epochs=100)
+    model_trainer.train(epochs=100)
     # result = model_trainer.inference_single(model_name = 'yolov8l',img_name='006210.png')
     # model_trainer.download()
     # Train
@@ -206,8 +209,9 @@ if __name__ == '__main__':
     # model_trainer.eval('detect/train5')
     
     # model_trainer.inference_single(model_name = 'yolov8l',img_name='1737258910.228790.jpg')
-    model = YOLO(os.path.join(weight_dir,'yolov8s.pt'))
-    model.export(imgsz=640,format="onnx",simplify=True,optimize=True, name="yolov8s_simp_opt.onnx")
+    # model_trainer.download()
+    # model = YOLO(os.path.join(weight_dir,'yolov11n.pt'))
+    # model.export(imgsz=640,format="onnx",simplify=True,optimize=True, name="yolov8s_simp_opt.onnx")
     # result_list = model_trainer.inference(weight_dir,'yolov8l-seg',range(11250,11300),lidar_points=True,box=False,mask=True,box_3d=True,output_dir=output_dir)
     
     # result_list = []
