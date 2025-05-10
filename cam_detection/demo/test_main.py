@@ -13,6 +13,7 @@ class devClass:
         self.hikSDK, self.playM4SDK = self.LoadSDK()  # 加载sdk库
         self.iUserID = -1  # 登录句柄
         self.lRealPlayHandle = -1  # 预览句柄
+        self.lRealPlayHandle1 = -1  # 预览句柄
         self.wincv = None  # windows环境下的参数
         self.win = None  # 预览窗口
         self.FuncDecCB = None  # 解码回调
@@ -117,16 +118,16 @@ class devClass:
             img_rgb = cv2.cvtColor(YUV,cv2.COLOR_YUV2BGR_YV12)
             # cv2.imwrite(sFileName, img_rgb)
             # 使用 YOLOv8 进行目标检测
-            img_rgb = cv2.resize(img_rgb, (nWidth // 10, nHeight // 10))
-            results = model.predict(img_rgb, conf=0.5, show=False)
-            annotated_frame = results[0].plot()  # 绘制检测结果
+            # img_rgb = cv2.resize(img_rgb, (nWidth // 10, nHeight // 10))
+            # results = model.predict(img_rgb, conf=0.5, show=False)
+            # annotated_frame = results[0].plot()  # 绘制检测结果
 
-            # 显示检测结果
-            cv2.imshow("YOLO Detection", annotated_frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):  # 按 'q' 键退出
-                self.stopPlay()
-                self.LogoutDev()
-                cv2.destroyAllWindows()
+            # # 显示检测结果
+            # cv2.imshow("YOLO Detection", annotated_frame)
+            # if cv2.waitKey(1) & 0xFF == ord('q'):  # 按 'q' 键退出
+            #     self.stopPlay()
+            #     self.LogoutDev()
+            #     cv2.destroyAllWindows()
                         
             print(nWidth, nHeight, nType, dwFrameNum, nStamp, sFileName)
             lRet = 0
@@ -197,15 +198,31 @@ class devClass:
             # 创建窗口
             self.win = tkinter.Tk()
             self.win.resizable(0, 0)
-            self.win.overrideredirect(True)
+            self.win.overrideredirect(True)  # 去掉窗口边框
 
+            # 初始化窗口位置
             sw = self.win.winfo_screenwidth()
             sh = self.win.winfo_screenheight()
             ww = 512
             wh = 384
-            x = (sw - ww) / 2
-            y = (sh - wh) / 2
-            self.win.geometry("%dx%d+%d+%d" % (ww, wh, x, y))
+            x = (sw - ww) // 2
+            y = (sh - wh) // 2
+            self.win.geometry(f"{ww}x{wh}+{x}+{y}")
+
+            # 添加拖动功能
+            def start_move(event):
+                self.win.x = event.x
+                self.win.y = event.y
+
+            def do_move(event):
+                dx = event.x - self.win.x
+                dy = event.y - self.win.y
+                new_x = self.win.winfo_x() + dx
+                new_y = self.win.winfo_y() + dy
+                self.win.geometry(f"+{new_x}+{new_y}")
+
+            self.win.bind("<Button-1>", start_move)  # 按下鼠标左键
+            self.win.bind("<B1-Motion>", do_move)   # 拖动鼠标左键
 
             # 创建退出按键
             b = Button(self.win, text='退出', command=self.win.quit)
@@ -219,20 +236,25 @@ class devClass:
             preview_info.lChannel = 1  # 通道号
             preview_info.dwStreamType = 0  # 主码流
             preview_info.dwLinkMode = 0  # TCP
-            preview_info.bBlocked = 1  # 阻塞取流
+            preview_info.bBlocked = 0  # 非阻塞取流
 
             # 设置回调函数
-            self.lRealPlayHandle = self.hikSDK.NET_DVR_RealPlay_V40(self.iUserID, byref(preview_info),
-                                                                    self.funcRealDataCallBack_V30,
-                                                                    None)
-            if self.lRealPlayHandle < 0:
-                print('Open preview fail, error code is: %d' % self.hikSDK.NET_DVR_GetLastError())
-                self.hikSDK.NET_DVR_Logout(self.iUserID)
-                self.hikSDK.NET_DVR_Cleanup()
-                exit()
+            
+            for i in range(4):
+                preview_info.lChannel = i+1  # 通道号
+                self.lRealPlayHandle = self.hikSDK.NET_DVR_RealPlay_V40(self.iUserID, byref(preview_info),
+                                                                        self.funcRealDataCallBack_V30,
+                                                                        None)
+            
+            
+                if self.lRealPlayHandle < 0:
+                    print('Open preview fail, error code is: %d' % self.hikSDK.NET_DVR_GetLastError())
+                    self.hikSDK.NET_DVR_Logout(self.iUserID)
+                    self.hikSDK.NET_DVR_Cleanup()
+                    exit()
 
-            # 显示窗口
-            self.win.mainloop()
+                # 显示窗口
+                # self.win.mainloop()
 
     def stopPlay(self):
         # 关闭预览
