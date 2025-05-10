@@ -193,10 +193,10 @@ if __name__ == '__main__':
     
     dataloader = DataGenerator(data_dir, img_dir, xband_dir, lidar_dir, calib_dir, label_dir, dynamic_dir)
     fusion_processor = Fusion(dataloader=dataloader,PCA=True)
-    model_trainer = Model_Trainer(dataloader = dataloader, fusion_processor = fusion_processor, data_dir = img_dir, weight_dir = weight_dir,output_dir = output_dir, data_config=data_config)
+    model_trainer = Model_Trainer(dataloader = dataloader, fusion_processor = fusion_processor, data_dir = img_dir, weight_dir = weight_dir,output_dir = output_dir,model_config=model_config, data_config=data_config)
     
     # model_trainer.split_dataset()
-    # model_trainer.train(epochs=100)
+    model_trainer.train(epochs=100)
     # result = model_trainer.inference_single(model_name = 'yolov8l',img_name='006210.png')
     # model_trainer.download()
     # Train
@@ -206,8 +206,8 @@ if __name__ == '__main__':
     # model_trainer.eval('detect/train5')
     
     # model_trainer.inference_single(model_name = 'yolov8l',img_name='1737258910.228790.jpg')
-    model = YOLO(os.path.join(weight_dir,'yolov8s.pt'))
-    model.export(imgsz=640,format="onnx",simplify=True,optimize=True, name="yolov8s_simp_opt.onnx")
+    # model = YOLO(os.path.join(weight_dir,'yolov8s.pt'))
+    # model.export(imgsz=640,format="onnx",simplify=True,optimize=True, name="yolov8s_simp_opt.onnx")
     # result_list = model_trainer.inference(weight_dir,'yolov8l-seg',range(11250,11300),lidar_points=True,box=False,mask=True,box_3d=True,output_dir=output_dir)
     
     # result_list = []

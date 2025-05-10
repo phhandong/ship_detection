@@ -574,10 +574,10 @@ if __name__ == '__main__':
     # data_loader.visualize_rgb_video()
     
     # data_loader.visualize_projection('1724240642520185841.bin', '1724240641715529007.jpg')
-    # data_loader.visualize_lidar(data_loader.process_lidar('1625124970162969390.bin'))
+    data_loader.visualize_lidar(data_loader.process_lidar('1625124970162969390.bin'))
     # data_loader.visualize_lidar_video()
     # data_loader.visualize_projection_video()
-    data_loader.visualize_lidar(data_loader.load_pcd_data(r'F:\2025-01-19-11-53-27\pointcloud\1737258946.735743000.pcd'))
+    # data_loader.visualize_lidar(data_loader.load_pcd_data(r'D:\Feishu_files\1737258809.540635000.pcd'))
     
     
     # point_cloud = data_loader.visualize_projection_single_masked()

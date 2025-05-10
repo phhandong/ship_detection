@@ -64,6 +64,11 @@ from ultralytics.nn.modules import (
     WorldDetect,
     v10Detect,
 )
+from ultralytics.nn.attention import (
+    CBAM,
+    SeNet,
+)
+
 from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, colorstr, emojis, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
 from ultralytics.utils.loss import (
@@ -1217,6 +1222,12 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             c2 = args[0]
             c1 = ch[f]
             args = [*args[1:]]
+        elif m in {CBAM}:
+            c2 = ch[f]
+            args = [c2, *args]
+        elif m in {SeNet}:
+            c2 = ch[f]
+            args = [c2, *args]
         else:
             c2 = ch[f]
 
